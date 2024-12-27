@@ -4,6 +4,7 @@ from pathlib import Path
 import folder_paths
 import zipfile
 from itertools import zip_longest
+import datetime
 from .utils import *
 
 TOOLTIP_LIMIT_OPUS_FREE = "Limit image size and steps for free generation by Opus."
@@ -160,8 +161,6 @@ class GenerateNAID:
                 "uncond_scale": ("FLOAT", { "default": 1.0, "min": 0.0, "max": 1.5, "step": 0.05, "display": "number" }),
                 "cfg_rescale": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.02, "display": "number" }),
                 "keep_alpha": ("BOOLEAN", { "default": True, "tooltip": "Disable to further process output images locally" }),
-                "char0_pos": ("STRING", { "default": "char0_pos", "multiline": True, "dynamicPrompts": False }),
-                "char0_neg": ("STRING", { "default": "char0_neg", "multiline": True, "dynamicPrompts": False }),
             },
             "optional": { "option": ("NAID_OPTION",) },
         }
@@ -170,383 +169,85 @@ class GenerateNAID:
     FUNCTION = "generate"
     CATEGORY = "NovelAI"
 
-    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char0_pos,char0_neg, option=None):
+    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha, option=None):
         width, height = calculate_resolution(width*height, (width, height))
+
         # ref. novelai_api.ImagePreset
-        params2 = {
-            "params_version": 3,
+        params = {
+            "params_version": 1,
             "width": width,
             "height": height,
             "scale": cfg,
-            "sampler": "k_euler_ancestral", #sampler
+            "sampler": sampler,
             "steps": steps,
-            "n_samples": 1,
-            "ucPreset": 2,
-            "qualityToggle": False,
-            # "sm": (smea == "SMEA" or smea == "SMEA+DYN") and sampler != "ddim",
-            # "sm_dyn": smea == "SMEA+DYN" and sampler != "ddim",
-            "dynamic_thresholding": False, #decrisper
-            "controlnet_strength": 1,
-            "legacy": False,
-            "add_original_image": True, #False -> True
-            "cfg_rescale": 0 ,#cfg_rescale
-            "noise_schedule": "karras",#scheduler
-            "legacy_v3_extend": False,
-            "skip_cfg_above_sigma": None,
-            # "uncond_scale": uncond_scale,
-            "use_coords": False,
             "seed": seed,
-            # "negative_prompt": negative,
-            # "prompt": positive,
-            # "reference_image_multiple": [],
-            # "reference_information_extracted_multiple": [],
-            # "reference_strength_multiple": [],
-            # "extra_noise_seed": seed,
-            "characterPrompts": [
-                {
-                    "prompt": positive,
-                    "uc": char0_neg,
-                    "center": {
-                        "x": 0.5,
-                        "y": 0.5
-                    }
-                }
-            ],
-            "v4_prompt": {
-                "caption": {
-                    "base_caption": positive,
-                    # ここから
-                    "char_captions": [
-                        {
-                                        "har_caption": char0_pos,
-                                        "center": [
-                                            {
-                                            "x": 0.5,
-                                            "y": 0.5
-                                            }
-                                        ]
-                        }
-                    ]
-                },
-                "use_coords": False,
-                "use_order": True,
-            },
-            "v4_negative_prompt": {
-                "caption": {
-                    "base_caption": negative ,
-                    "char_captions": [
-                        {
-                        "char_caption": char0_neg ,
-                        "centers": [{
-                            "x": 0.5,
-                            "y": 0.5
-                        }]
-                        }
-                    ]
-                }
-            },
-            "negative_prompt": negative ,
+            "n_samples": 1,
+            "ucPreset": 3,
+            "qualityToggle": False,
+            "sm": (smea == "SMEA" or smea == "SMEA+DYN") and sampler != "ddim",
+            "sm_dyn": smea == "SMEA+DYN" and sampler != "ddim",
+            "dynamic_thresholding": decrisper,
+            "skip_cfg_above_sigma": None,
+            "controlnet_strength": 1.0,
+            "legacy": False,
+            "add_original_image": False,
+            "cfg_rescale": cfg_rescale,
+            "noise_schedule": scheduler,
+            "legacy_v3_extend": False,
+            "uncond_scale": uncond_scale,
+            "negative_prompt": negative,
+            "prompt": positive,
             "reference_image_multiple": [],
             "reference_information_extracted_multiple": [],
             "reference_strength_multiple": [],
-            "deliberate_euler_ancestral_bug": False,
-            "prefer_brownian": True
-                
-        }
-        params ={
-        "params_version": 3,
-        "width": width,
-        "height": height,
-        "scale": cfg,
-        "sampler": sampler,
-        "steps": steps,
-        "n_samples": 1,
-        "ucPreset": 2,
-        "qualityToggle": False,
-        "dynamic_thresholding": False,
-        "controlnet_strength": 1,
-        "legacy": False,
-        "add_original_image": True,
-        "cfg_rescale": 0,
-        "noise_schedule": scheduler,
-        "legacy_v3_extend": False,
-        "skip_cfg_above_sigma": None,
-        "use_coords": False,
-        "seed": seed,
-        "characterPrompts": [
-            {
-                "prompt": char0_pos,
-                "uc": "cha0_neg",
-                "center": {
-                    "x": 0.5,
-                    "y": 0.5
+            "extra_noise_seed": seed,
+            "v4_prompt": {
+                "use_coords": False,
+                "use_order": False,
+                "caption": {
+                    "base_caption": positive,
+                    "char_captions": []
+                }
+            },
+            "v4_negative_prompt": {
+                "use_coords": False,
+                "use_order": False,
+                "caption": {
+                    "base_caption": negative,
+                    "char_captions": []
                 }
             }
-        ],
-        "v4_prompt": {
-            "caption": {
-                "base_caption": positive,
-                "char_captions": [
-                    {
-                        "char_caption": char0_pos,
-                        "centers": [
-                            {
-                                "x": 0.5,
-                                "y": 0.5
-                            }
-                        ]
-                    }
-                ]
-            },
-            "use_coords": False,
-            "use_order": True
-        },
-        "v4_negative_prompt": {
-            "caption": {
-                "base_caption": negative,
-                "char_captions": [
-                    {
-                        "char_caption": "cha0_neg",
-                        "centers": [
-                            {
-                                "x": 0.5,
-                                "y": 0.5
-                            }
-                        ]
-                    }
-                ]
-            }
-        },
-        "negative_prompt": negative,
-        "reference_image_multiple": [],
-        "reference_information_extracted_multiple": [],
-        "reference_strength_multiple": [],
-        "deliberate_euler_ancestral_bug": False,
-        "prefer_brownian": True
-    }
-        model = "nai-diffusion-4-curated-preview"
-        action = "generate"
-
-        # if option:
-        #     if "img2img" in option:
-        #         action = "img2img"
-        #         image, strength, noise = option["img2img"]
-        #         params["image"] = image_to_base64(resize_image(image, (width, height)))
-        #         params["strength"] = strength
-        #         params["noise"] = noise
-        #     elif "infill" in option:
-        #         action = "infill"
-        #         image, mask, add_original_image = option["infill"]
-        #         params["image"] = image_to_base64(resize_image(image, (width, height)))
-        #         params["mask"] = naimask_to_base64(resize_to_naimask(mask, (width, height)))
-        #         params["add_original_image"] = add_original_image
-
-        #     if "vibe" in option:
-        #         for vibe in option["vibe"]:
-        #             image, information_extracted, strength = vibe
-        #             params["reference_image_multiple"].append(image_to_base64(resize_image(image, (width, height))))
-        #             params["reference_information_extracted_multiple"].append(information_extracted)
-        #             params["reference_strength_multiple"].append(strength)
-
-        #     if "model" in option:
-        #         model = option["model"]
-
-        #     # Handle V4 options
-        #     if "v4_prompt" in option:
-        #         params["v4_prompt"].update(option["v4_prompt"])
-
-        timeout = option["timeout"] if option and "timeout" in option else None
-        retry = option["retry"] if option and "retry" in option else None
-
-        if limit_opus_free:
-            pixel_limit = 1024*1024 if model in ("nai-diffusion-2", "nai-diffusion-furry-3", "nai-diffusion-3", "nai-diffusion-4", "nai-diffusion-4-curated-preview") else 640*640
-            if width * height > pixel_limit:
-                max_width, max_height = calculate_resolution(pixel_limit, (width, height))
-                params["width"] = max_width
-                params["height"] = max_height
-            if steps > 28:
-                params["steps"] = 28
-
-        if variety:
-            params["skip_cfg_above_sigma"] = calculate_skip_cfg_above_sigma(params["width"], params["height"])
-
-        if sampler == "ddim" and model in ("nai-diffusion-3", "nai-diffusion-4", "nai-diffusion-4-curated-preview"):
-            params["sampler"] = "ddim_v3"
-
-        if action == "infill" and model != "nai-diffusion-2":
-            model = f"{model}-inpainting"
-
-        image = blank_image()
-        try:
-            zipped_bytes = generate_image(self.access_token, positive, model, action, params, timeout, retry)
-            zipped = zipfile.ZipFile(io.BytesIO(zipped_bytes))
-            image_bytes = zipped.read(zipped.infolist()[0]) # only support one n_samples
-
-            ## save original png to comfy output dir
-            full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("NAI_autosave", self.output_dir)
-            file = f"{filename}_{counter:05}_.png"
-            d = Path(full_output_folder)
-            d.mkdir(exist_ok=True)
-            (d / file).write_bytes(image_bytes)
-
-            image = bytes_to_image(image_bytes, keep_alpha)
-        except Exception as e:
-            if "ignore_errors" in option and option["ignore_errors"]:
-                print("ignore error:", e)
-            else:
-                raise e
-
-        return (image,)
-
-class GenerateNAIDr:
-    def __init__(self):
-        self.access_token = get_access_token()
-        self.output_dir = folder_paths.get_output_directory()
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "limit_opus_free": ("BOOLEAN", { "default": True, "tooltip": TOOLTIP_LIMIT_OPUS_FREE }),
-                "width": ("INT", { "default": 832, "min": 64, "max": 1600, "step": 64, "display": "number" }),
-                "height": ("INT", { "default": 1216, "min": 64, "max": 1600, "step": 64, "display": "number" }),
-                "positive": ("STRING", { "default": ", best quality, amazing quality, very aesthetic, absurdres", "multiline": True, "dynamicPrompts": False }),
-                "negative": ("STRING", { "default": "lowres", "multiline": True, "dynamicPrompts": False }),
-                "steps": ("INT", { "default": 28, "min": 0, "max": 50, "step": 1, "display": "number" }),
-                "cfg": ("FLOAT", { "default": 5.0, "min": 0.0, "max": 10.0, "step": 0.1, "display": "number" }),
-                "variety" : ("BOOLEAN", { "default": False }),
-                "decrisper": ("BOOLEAN", { "default": False }),
-                "smea": (["none", "SMEA", "SMEA+DYN"], { "default": "none" }),
-                "sampler": (["k_euler", "k_euler_ancestral", "k_dpmpp_2s_ancestral", "k_dpmpp_2m_sde", "k_dpmpp_2m", "k_dpmpp_sde", "ddim"], { "default": "k_euler" }),
-                "scheduler": (["native", "karras", "exponential", "polyexponential"], { "default": "native" }),
-                "seed": ("INT", { "default": 0, "min": 0, "max": 9999999999, "step": 1, "display": "number" }),
-                "uncond_scale": ("FLOAT", { "default": 1.0, "min": 0.0, "max": 1.5, "step": 0.05, "display": "number" }),
-                "cfg_rescale": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.02, "display": "number" }),
-                "keep_alpha": ("BOOLEAN", { "default": True, "tooltip": "Disable to further process output images locally" }),
-                "char_pos": ("LIST", { "default": []}),
-                "char_neg": ("LIST", { "default": []}),
-            },
-            "optional": { "option": ("NAID_OPTION",) },
         }
-
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "generate"
-    CATEGORY = "NovelAI"
-
-    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char_pos,char_neg, option=None):
-        width, height = calculate_resolution(width*height, (width, height))
-        # ref. novelai_api.ImagePreset
-        # キャラプロンプト系を作成
-        # print("positive:",char_pos)
-        # print("negative:",char_neg)
-        characterPrompts  = []
-        char_captions_pos = []
-        char_captions_neg = []
-        for pos,neg in zip_longest(char_pos,char_neg,fillvalue=''):
-            # print(pos)
-            # if True :
-            if pos != "":
-                characterPrompts.append({
-                    "prompt": pos,
-                    "uc": neg,
-                    "center": {
-                        "x": 0.5,
-                        "y": 0.5
-                    }
-                })
-                char_captions_pos.append({
-                    "char_caption": pos,
-                    "centers": [
-                        {
-                            "x": 0.5,
-                            "y": 0.5
-                        }
-                    ]
-                })
-                char_captions_neg.append({
-                    "char_caption": neg,
-                    "centers": [
-                        {
-                            "x": 0.5,
-                            "y": 0.5
-                        }
-                    ]
-                })
-        # test
-        # print("testdata characterPrompts:",characterPrompts,"char_captions_pos",char_captions_pos,"char_captions_neg",char_captions_neg)
-        # キャラprompt作成系終了
-        params ={
-        "params_version": 3,
-        "width": width,
-        "height": height,
-        "scale": cfg,
-        "sampler": sampler,
-        "steps": steps,
-        "n_samples": 1,
-        "ucPreset": 2,
-        "qualityToggle": False,
-        "dynamic_thresholding": False,
-        "controlnet_strength": 1,
-        "legacy": False,
-        "add_original_image": True,
-        "cfg_rescale": 0,
-        "noise_schedule": scheduler,
-        "legacy_v3_extend": False,
-        "skip_cfg_above_sigma": None,
-        "use_coords": False,
-        "seed": seed,
-        "characterPrompts": characterPrompts,
-        "v4_prompt": {
-            "caption": {
-                "base_caption": positive,
-                "char_captions": char_captions_pos,
-            },
-            "use_coords": False,
-            "use_order": True
-        },
-        "v4_negative_prompt": {
-            "caption": {
-                "base_caption": negative,
-                "char_captions": char_captions_neg,
-            }
-        },
-        "negative_prompt": negative,
-        "reference_image_multiple": [],
-        "reference_information_extracted_multiple": [],
-        "reference_strength_multiple": [],
-        "deliberate_euler_ancestral_bug": False,
-        "prefer_brownian": True
-    }
         model = "nai-diffusion-4-curated-preview"
         action = "generate"
 
-        # if option:
-        #     if "img2img" in option:
-        #         action = "img2img"
-        #         image, strength, noise = option["img2img"]
-        #         params["image"] = image_to_base64(resize_image(image, (width, height)))
-        #         params["strength"] = strength
-        #         params["noise"] = noise
-        #     elif "infill" in option:
-        #         action = "infill"
-        #         image, mask, add_original_image = option["infill"]
-        #         params["image"] = image_to_base64(resize_image(image, (width, height)))
-        #         params["mask"] = naimask_to_base64(resize_to_naimask(mask, (width, height)))
-        #         params["add_original_image"] = add_original_image
+        if option:
+            if "img2img" in option:
+                action = "img2img"
+                image, strength, noise = option["img2img"]
+                params["image"] = image_to_base64(resize_image(image, (width, height)))
+                params["strength"] = strength
+                params["noise"] = noise
+            elif "infill" in option:
+                action = "infill"
+                image, mask, add_original_image = option["infill"]
+                params["image"] = image_to_base64(resize_image(image, (width, height)))
+                params["mask"] = naimask_to_base64(resize_to_naimask(mask, (width, height)))
+                params["add_original_image"] = add_original_image
 
-        #     if "vibe" in option:
-        #         for vibe in option["vibe"]:
-        #             image, information_extracted, strength = vibe
-        #             params["reference_image_multiple"].append(image_to_base64(resize_image(image, (width, height))))
-        #             params["reference_information_extracted_multiple"].append(information_extracted)
-        #             params["reference_strength_multiple"].append(strength)
+            if "vibe" in option:
+                for vibe in option["vibe"]:
+                    image, information_extracted, strength = vibe
+                    params["reference_image_multiple"].append(image_to_base64(resize_image(image, (width, height))))
+                    params["reference_information_extracted_multiple"].append(information_extracted)
+                    params["reference_strength_multiple"].append(strength)
 
-        #     if "model" in option:
-        #         model = option["model"]
+            if "model" in option:
+                model = option["model"]
 
-        #     # Handle V4 options
-        #     if "v4_prompt" in option:
-        #         params["v4_prompt"].update(option["v4_prompt"])
+            # Handle V4 options
+            if "v4_prompt" in option:
+                params["v4_prompt"].update(option["v4_prompt"])
 
         timeout = option["timeout"] if option and "timeout" in option else None
         retry = option["retry"] if option and "retry" in option else None
@@ -590,7 +291,6 @@ class GenerateNAIDr:
                 raise e
 
         return (image,)
-
 
 
 def base_augment(access_token, output_dir, limit_opus_free, ignore_errors, req_type, image, options=None):
@@ -781,7 +481,7 @@ class V4BasePrompt:
     def convert(self, base_caption):
         return (base_caption,)  # Simply returns the caption as a string
 
-class V4PromptConfig:
+"""class V4PromptConfig:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -835,7 +535,7 @@ class V4CharacterCaption:
         
         option["v4_prompt"]["caption"]["char_captions"].append(char_caption_obj)
         return (option,)
-
+"""
 class V4NegativePrompt:
     @classmethod
     def INPUT_TYPES(s):
@@ -851,10 +551,203 @@ class V4NegativePrompt:
     def convert(self, negative_caption):
         return (negative_caption,)
 
+class GenerateNAIDrev4:
+    def __init__(self):
+        self.access_token = get_access_token()
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "limit_opus_free": ("BOOLEAN", { "default": True, "tooltip": TOOLTIP_LIMIT_OPUS_FREE }),
+                "width": ("INT", { "default": 832, "min": 64, "max": 1600, "step": 64, "display": "number" }),
+                "height": ("INT", { "default": 1216, "min": 64, "max": 1600, "step": 64, "display": "number" }),
+                "positive": ("STRING", { "default": ", best quality, amazing quality, very aesthetic, absurdres", "multiline": True, "dynamicPrompts": False }),
+                "negative": ("STRING", { "default": "lowres", "multiline": True, "dynamicPrompts": False }),
+                "steps": ("INT", { "default": 28, "min": 0, "max": 50, "step": 1, "display": "number" }),
+                "cfg": ("FLOAT", { "default": 5.0, "min": 0.0, "max": 10.0, "step": 0.1, "display": "number" }),
+                "variety" : ("BOOLEAN", { "default": False }),
+                "decrisper": ("BOOLEAN", { "default": False }),
+                "smea": (["none", "SMEA", "SMEA+DYN"], { "default": "none" }),
+                "sampler": (["k_euler", "k_euler_ancestral", "k_dpmpp_2s_ancestral", "k_dpmpp_2m_sde", "k_dpmpp_2m", "k_dpmpp_sde", "ddim"], { "default": "k_euler" }),
+                "scheduler": (["native", "karras", "exponential", "polyexponential"], { "default": "native" }),
+                "seed": ("INT", { "default": 0, "min": 0, "max": 9999999999, "step": 1, "display": "number" }),
+                "uncond_scale": ("FLOAT", { "default": 1.0, "min": 0.0, "max": 1.5, "step": 0.05, "display": "number" }),
+                "cfg_rescale": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.02, "display": "number" }),
+                "keep_alpha": ("BOOLEAN", { "default": True, "tooltip": "Disable to further process output images locally" }),
+                "char_pos": ("LIST", { "default": []}),
+                "char_neg": ("LIST", { "default": []}),
+            },
+            "optional": { "option": ("NAID_OPTION",) },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "generate"
+    CATEGORY = "NovelAI"
+
+    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char_pos,char_neg, option=None):
+        width, height = calculate_resolution(width*height, (width, height))
+        # ref. novelai_api.ImagePreset
+        # キャラプロンプト系を作成
+        # print("positive:",char_pos)
+        # print("negative:",char_neg)
+        characterPrompts  = []
+        char_captions_pos = []
+        char_captions_neg = []
+        for pos,neg in zip_longest(char_pos,char_neg,fillvalue=''):
+            # print(pos)
+            # if True :
+            if pos != "":
+                characterPrompts.append({
+                    "prompt": pos,
+                    "uc": neg,
+                    "center": {
+                        "x": 0.5,
+                        "y": 0.5
+                    }
+                })
+                char_captions_pos.append({
+                    "char_caption": pos,
+                    "centers": [
+                        {
+                            "x": 0.5,
+                            "y": 0.5
+                        }
+                    ]
+                })
+                char_captions_neg.append({
+                    "char_caption": neg,
+                    "centers": [
+                        {
+                            "x": 0.5,
+                            "y": 0.5
+                        }
+                    ]
+                })
+        # test
+        # print("testdata characterPrompts:",characterPrompts,"char_captions_pos",char_captions_pos,"char_captions_neg",char_captions_neg)
+        # キャラprompt作成系終了
+        params ={
+        "params_version": 3,
+        "width": width,
+        "height": height,
+        "scale": cfg,
+        "sampler": sampler,
+        "steps": steps,
+        "n_samples": 1,
+        "ucPreset": 2,
+        "qualityToggle": False,
+        "dynamic_thresholding": False,
+        "controlnet_strength": 1,
+        "legacy": False,
+        "add_original_image": True,
+        "cfg_rescale": 0,
+        "noise_schedule": scheduler,
+        "legacy_v3_extend": False,
+        "skip_cfg_above_sigma": None,
+        "use_coords": False,
+        "seed": seed,
+        "characterPrompts": characterPrompts,
+        "v4_prompt": {
+            "caption": {
+                "base_caption": positive,
+                "char_captions": char_captions_pos,
+            },
+            "use_coords": False,
+            "use_order": True
+        },
+        "v4_negative_prompt": {
+            "caption": {
+                "base_caption": negative,
+                "char_captions": char_captions_neg,
+            }
+        },
+        "negative_prompt": negative,
+        "reference_image_multiple": [],
+        "reference_information_extracted_multiple": [],
+        "reference_strength_multiple": [],
+        "deliberate_euler_ancestral_bug": False,
+        "prefer_brownian": True
+    }
+        model = "nai-diffusion-4-curated-preview"
+        action = "generate"
+
+        # if option:
+        #     if "img2img" in option:
+        #         action = "img2img"
+        #         image, strength, noise = option["img2img"]
+        #         params["image"] = image_to_base64(resize_image(image, (width, height)))
+        #         params["strength"] = strength
+        #         params["noise"] = noise
+        #     elif "infill" in option:
+        #         action = "infill"
+        #         image, mask, add_original_image = option["infill"]
+        #         params["image"] = image_to_base64(resize_image(image, (width, height)))
+        #         params["mask"] = naimask_to_base64(resize_to_naimask(mask, (width, height)))
+        #         params["add_original_image"] = add_original_image
+
+        #     if "vibe" in option:
+        #         for vibe in option["vibe"]:
+        #             image, information_extracted, strength = vibe
+        #             params["reference_image_multiple"].append(image_to_base64(resize_image(image, (width, height))))
+        #             params["reference_information_extracted_multiple"].append(information_extracted)
+        #             params["reference_strength_multiple"].append(strength)
+
+        #     if "model" in option:
+        #         model = option["model"]
+
+        #     # Handle V4 options
+        #     if "v4_prompt" in option:
+        #         params["v4_prompt"].update(option["v4_prompt"])
+
+        timeout = option["timeout"] if option and "timeout" in option else None
+        retry = option["retry"] if option and "retry" in option else None
+
+        if limit_opus_free:
+            pixel_limit = 1024*1024 if model in ("nai-diffusion-2", "nai-diffusion-furry-3", "nai-diffusion-3", "nai-diffusion-4", "nai-diffusion-4-curated-preview") else 640*640
+            if width * height > pixel_limit:
+                max_width, max_height = calculate_resolution(pixel_limit, (width, height))
+                params["width"] = max_width
+                params["height"] = max_height
+            if steps > 28:
+                params["steps"] = 28
+
+        if variety:
+            params["skip_cfg_above_sigma"] = calculate_skip_cfg_above_sigma(params["width"], params["height"])
+
+        if sampler == "ddim" and model in ("nai-diffusion-3", "nai-diffusion-4", "nai-diffusion-4-curated-preview"):
+            params["sampler"] = "ddim_v3"
+
+        if action == "infill" and model != "nai-diffusion-2":
+            model = f"{model}-inpainting"
+
+        image = blank_image()
+        try:
+            zipped_bytes = generate_image_fix(self.access_token, positive, model, action, params, timeout, retry)
+            zipped = zipfile.ZipFile(io.BytesIO(zipped_bytes))
+            image_bytes = zipped.read(zipped.infolist()[0]) # only support one n_samples
+
+            ## save original png to comfy output dir
+            full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("NAI_autosave", self.output_dir)
+            file = f"{filename}_{counter:05}_.png"
+            d = Path(full_output_folder)
+            d.mkdir(exist_ok=True)
+            (d / file).write_bytes(image_bytes)
+
+            image = bytes_to_image(image_bytes, keep_alpha)
+        except Exception as e:
+            if "ignore_errors" in option and option["ignore_errors"]:
+                print("ignore error:", e)
+            else:
+                raise e
+
+        return (image,)
+
+
 
 NODE_CLASS_MAPPINGS = {
     "GenerateNAID": GenerateNAID,
-    "GenerateNAIDr": GenerateNAIDr,
     "ModelOptionNAID": ModelOption,
     "Img2ImgOptionNAID": Img2ImgOption,
     "InpaintingOptionNAID": InpaintingOption,
@@ -870,12 +763,11 @@ NODE_CLASS_MAPPINGS = {
     "DeclutterNAID": DeclutterAugment,
     "V4BasePrompt": V4BasePrompt,
     "V4NegativePrompt": V4NegativePrompt,
-    "V4PromptConfig":V4PromptConfig,
+    "GenerateNAIDV4":GenerateNAIDrev4,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "GenerateNAID": "Generate ✒️🅝🅐🅘",
-    "GenerateNAIDr": "GenerateNAIr",
     "ModelOptionNAID": "ModelOption ✒️🅝🅐🅘",
     "Img2ImgOptionNAID": "Img2ImgOption ✒️🅝🅐🅘",
     "InpaintingOptionNAID": "InpaintingOption ✒️🅝🅐🅘",
@@ -891,5 +783,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DeclutterNAID": "Declutter ✒️🅝🅐🅘",
     "V4BasePrompt": "V4 Base Prompt ✒️🅝🅐🅘",
     "V4NegativePrompt": "V4 Negative Prompt ✒️🅝🅐🅘",
-    "V4PromptConfig":"V4PromptConfig"
+    "GenerateNAIDV4":"GenerateNAIV4",
 }
