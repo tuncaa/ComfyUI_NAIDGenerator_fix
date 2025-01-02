@@ -13,8 +13,9 @@ import comfy.utils
 import torch
 import numpy as np
 from PIL import Image, ImageOps
-
+# 追加部分
 import time
+import json
 
 # cherry-picked from novelai_api.utils
 def argon_hash(email: str, password: str, size: int, domain: str) -> str:
@@ -68,12 +69,17 @@ def generate_image(access_token, prompt, model, action, parameters, timeout=None
 
     response = request.post(f"{BASE_URL}/ai/generate-image", json=data, headers={ "Authorization": f"Bearer {access_token}" }, timeout=timeout)
     response.raise_for_status()
+    print('---------------------------')
+    print('post_data:',data)
+    print("wait 5sec.")
+    time.sleep(5)
     return response.content
 def generate_image_fix(access_token, prompt, model, action, parameters, timeout=None, retry=None):
     data = { "input": prompt, "model": model, "action": action, "parameters": parameters }
     # UA追加
     UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     # UA設定終わり
+
     request = requests
     if retry is not None and retry > 1:
         retries = Retry(total=retry, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["POST"])
@@ -89,7 +95,7 @@ def generate_image_fix(access_token, prompt, model, action, parameters, timeout=
     print('post_data:',data)
     print("wait 5sec.")
     time.sleep(5)
-    return response.content
+    return response.content,json.dumps(data, indent=2)
 
 def augment_image(access_token, req_type, width, height, image, options={}, timeout=None, retry=None):
     data = { "req_type": req_type, "width": width, "height": height, "image": image }
