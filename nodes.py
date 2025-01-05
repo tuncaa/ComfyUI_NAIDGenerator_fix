@@ -580,6 +580,9 @@ class GenerateNAIDrev4:
                 "char_neg": ("LIST", { "default": []}),
                 "char_position":("BOOLEAN", { "default": False, "tooltip": "Trueで複数キャラの位置決め強制" }),
                 "char_position_arr": ("LIST", { "default": []}),
+                "dynamic_thresholding":("BOOLEAN",{"default": False, "tooltip": "高CFGでの影響緩和だがpreでほぼ機能していない？"}),
+                "skip_cfg_above_sigma":("BOOLEAN", { "default": False, "tooltip": "NovelAIでの多様性フラグ" }),
+
             },
             "optional": { "option": ("NAID_OPTION",) },
         }
@@ -588,7 +591,7 @@ class GenerateNAIDrev4:
     FUNCTION = "generate"
     CATEGORY = "NovelAI"
 
-    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char_pos,char_neg,char_position,char_position_arr, option=None):
+    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char_pos,char_neg,char_position,char_position_arr,dynamic_thresholding,skip_cfg_above_sigma, option=None):
         width, height = calculate_resolution(width*height, (width, height))
         # ref. novelai_api.ImagePreset
         # キャラプロンプト系を作成
@@ -597,6 +600,13 @@ class GenerateNAIDrev4:
         characterPrompts  = []
         char_captions_pos = []
         char_captions_neg = []
+        # cfg option 関係
+        if skip_cfg_above_sigma == False:
+            skip_cfg_above_sigma = None
+        else:
+            skip_cfg_above_sigma = 19.115036368906427
+
+
 
         for pos,neg,posarr in zip_longest(char_pos,char_neg,char_position_arr,fillvalue=''):
             # print(pos)
@@ -641,14 +651,14 @@ class GenerateNAIDrev4:
         "n_samples": 1,
         "ucPreset": 2,
         "qualityToggle": False,
-        "dynamic_thresholding": False,
+        "dynamic_thresholding": dynamic_thresholding,
         "controlnet_strength": 1,
         "legacy": False,
         "add_original_image": True,
-        "cfg_rescale": 0,
+        "cfg_rescale": cfg_rescale,
         "noise_schedule": scheduler,
         "legacy_v3_extend": False,
-        "skip_cfg_above_sigma": None,
+        "skip_cfg_above_sigma": skip_cfg_above_sigma,
         "use_coords": char_position,
         "seed": seed,
         "characterPrompts": characterPrompts,
