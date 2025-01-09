@@ -74,7 +74,7 @@ def generate_image(access_token, prompt, model, action, parameters, timeout=None
     print("wait 5sec.")
     time.sleep(5)
     return response.content
-def generate_image_fix(access_token, prompt, model, action, parameters, timeout=None, retry=None):
+def generate_image_fix(access_token, prompt, model, action, parameters, wait_sec, timeout=None, retry=None):
     data = { "input": prompt, "model": model, "action": action, "parameters": parameters }
     # UA追加
     UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -93,8 +93,8 @@ def generate_image_fix(access_token, prompt, model, action, parameters, timeout=
 
     print('---------------------------')
     print('post_data:',data)
-    print("wait 5sec.")
-    time.sleep(5)
+    print(f"wait {wait_sec}sec.")
+    time.sleep(wait_sec)
     return response.content,json.dumps(data, indent=2)
 
 def augment_image(access_token, req_type, width, height, image, options={}, timeout=None, retry=None):

@@ -582,6 +582,7 @@ class GenerateNAIDrev4:
                 "char_position_arr": ("LIST", { "default": []}),
                 "dynamic_thresholding":("BOOLEAN",{"default": False, "tooltip": "高CFGでの影響緩和だがpreでほぼ機能していない？"}),
                 "skip_cfg_above_sigma":("BOOLEAN", { "default": False, "tooltip": "NovelAIでの多様性フラグ" }),
+                "wait_sec": ("INT", { "default": 5, "min": 1, "max": 99999, "step": 1, "display": "number" }),
 
             },
             "optional": { "option": ("NAID_OPTION",) },
@@ -591,7 +592,7 @@ class GenerateNAIDrev4:
     FUNCTION = "generate"
     CATEGORY = "NovelAI"
 
-    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char_pos,char_neg,char_position,char_position_arr,dynamic_thresholding,skip_cfg_above_sigma, option=None):
+    def generate(self, limit_opus_free, width, height, positive, negative, steps, cfg, decrisper, variety, smea, sampler, scheduler, seed, uncond_scale, cfg_rescale, keep_alpha,char_pos,char_neg,char_position,char_position_arr,dynamic_thresholding,skip_cfg_above_sigma,wait_sec, option=None):
         width, height = calculate_resolution(width*height, (width, height))
         # ref. novelai_api.ImagePreset
         # キャラプロンプト系を作成
@@ -737,7 +738,7 @@ class GenerateNAIDrev4:
 
         image = blank_image()
         try:
-            zipped_bytes,prompt = generate_image_fix(self.access_token, positive, model, action, params, timeout, retry)
+            zipped_bytes,prompt = generate_image_fix(self.access_token, positive, model, action, params,wait_sec, timeout, retry)
             zipped = zipfile.ZipFile(io.BytesIO(zipped_bytes))
             image_bytes = zipped.read(zipped.infolist()[0]) # only support one n_samples
 
